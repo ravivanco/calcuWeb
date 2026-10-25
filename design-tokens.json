@@ -1,0 +1,9 @@
+﻿{
+  "name": "DECOKASA catálogo comercial",
+  "colors": { "canvas": "#f5f4f0", "surface": "#ffffff", "ink": "#20211f", "muted": "#63665e", "line": "#dedfd7", "brand": "#f5cf27", "brandHover": "#e9be13", "selected": "#fff9dc", "pending": "#74500a", "pendingSurface": "#fff7e5", "error": "#ad3028" },
+  "typography": { "family": "Arial, Helvetica, sans-serif", "body": "14px", "input": "16px", "title": "28px", "total": "38px", "lineHeight": 1.5 },
+  "spacing": { "1": "4px", "2": "8px", "3": "12px", "4": "16px", "5": "20px", "6": "24px", "8": "32px" },
+  "radii": { "control": "8px", "card": "12px" },
+  "interaction": { "minimumTarget": "44px", "focus": "#20211f", "duration": "160ms", "easing": "cubic-bezier(.23, 1, .32, 1)" },
+  "breakpoints": { "phone": "600px", "singleColumn": "1000px" }
+}

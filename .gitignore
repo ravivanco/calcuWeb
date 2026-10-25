@@ -9,3 +9,5 @@ output/
 *.log
 .env*
 !.env.example
+test-results/
+playwright-report/

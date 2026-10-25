@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { RotateCcw, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useProjectStorage } from './hooks/useProjectStorage';
 import { getProduct } from './data/catalog';
-import { buildQuote, calculateProject } from './utils/calculator';
+import { sellerById } from './data/sellers';
+import { buildQuote, calculateProject, exportQuoteCsv } from './utils/calculator';
 import type { BudgetItem } from './types/calculator';
 import { Header } from './components/Header';
+import { SellerSelector } from './components/SellerSelector';
 import { ProductSelector } from './components/ProductSelector';
 import { ProjectForm } from './components/ProjectForm';
 import { ResultsSummary } from './components/ResultsSummary';
@@ -13,7 +15,6 @@ import { InstallationOptions } from './components/InstallationOptions';
 import { BudgetModal } from './components/BudgetModal';
 import { ResetConfirmModal } from './components/ResetConfirmModal';
 import { PrintQuotationView } from './components/PrintQuotationView';
-
 export default function App() {
   const state = useProjectStorage();
   const { projectInput: input, setProjectInput, budgetItems, prices } = state;
@@ -24,25 +25,13 @@ export default function App() {
   const budgetLines = useMemo(() => buildQuote(budgetItems, prices), [budgetItems, prices]);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [sellerError, setSellerError] = useState(false);
   const [printScope, setPrintScope] = useState<'current' | 'budget'>('current');
   const [announcement, setAnnouncement] = useState('');
-  const print = (scope: 'current' | 'budget') => { flushSync(() => { setPrintScope(scope); setBudgetOpen(false); }); window.print(); };
-  const add = () => { const ok = state.addToBudget(); if (ok) setBudgetOpen(true); setAnnouncement(ok ? `Cálculo añadido. ${budgetItems.length + 1} en tu presupuesto.` : 'Revisa las medidas o el límite de 100 cálculos.'); return ok; };
-  return <><a className="skip-link" href="#calculadora">Ir a la calculadora</a>
-    <PrintQuotationView items={printScope === 'current' ? current : budgetItems} lines={printScope === 'current' ? currentLines : budgetLines} scope={printScope}/>
-    <div className="screen-app"><Header/>
-      <main id="calculadora" className="calculator-wrapper"><div className="workspace-toolbar"><div><h1>Calcula tus materiales</h1><p>Elige el material, ingresa las medidas y prepara tu presupuesto.</p></div><button className="text-button" aria-label="Nuevo cálculo" onClick={() => setResetOpen(true)}><RotateCcw size={15}/> Nuevo cálculo</button></div>
-        {state.storageNotice && <div className="storage-notice" role="status"><p>{state.storageNotice}</p><button className="icon-button" aria-label="Cerrar aviso" onClick={state.dismissNotice}><X size={16}/></button></div>}
-        <div className="calculator-layout"><div className="workspace-main">
-          <ProductSelector selectedProductId={product.id} onSelectProduct={state.selectProduct} price={prices[product.id]} onPrice={state.setPrice}/>
-          <ProjectForm product={product} input={input} onChangeInput={setProjectInput} result={result}/>
-          <InstallationOptions product={product} input={input} onChangeInput={setProjectInput} result={result} prices={prices} onPrice={state.setPrice}/>
-        </div><ResultsSummary product={product} result={result} lines={currentLines} wastePercent={input.wastePercent} onAdd={add} onPrint={() => print('current')}/></div>
-      </main>
-      <footer className="site-footer"><span>DECOKASA</span><span>Guardado en este navegador</span></footer>
-      <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
-      <BudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} items={budgetItems} lines={budgetLines} prices={prices} vendorMode onPrice={state.setPrice} onRemove={state.removeBudgetItem} onClear={state.clearBudget} onPrint={() => print('budget')} onLoad={item => { setProjectInput({ ...structuredClone(item.input), mode: 'area', wastePercent: item.input.wastePercent === 5 ? 5 : 10 }); setAnnouncement('Medidas recuperadas.'); }}/>
-      <ResetConfirmModal open={resetOpen} onClose={() => setResetOpen(false)} onConfirm={state.resetProject}/>
-    </div>
-  </>;
+  const [added, setAdded] = useState(false);
+  useEffect(() => { if (!added) return; const timeout = setTimeout(() => setAdded(false), 2400); return () => clearTimeout(timeout); }, [added]);
+  const requireSeller = () => { if (sellerById(input.sellerId)) return true; setSellerError(true); document.getElementById('seller-input')?.focus(); setAnnouncement('Selecciona un vendedor para continuar.'); return false; };
+  const print = (scope: 'current' | 'budget') => { if (scope === 'current' && !requireSeller()) return; flushSync(() => { setPrintScope(scope); setBudgetOpen(false); }); window.print(); };
+  const add = () => { if (!requireSeller()) return; const ok = state.addToBudget(); setAdded(ok); setAnnouncement(ok ? `Cálculo añadido. ${budgetItems.length + 1} guardados en el presupuesto.` : 'Revisa las medidas o el límite de 100 cálculos.'); };
+  return <><a className="skip-link" href="#calculadora">Ir a la calculadora</a><PrintQuotationView items={printScope === 'current' ? current : budgetItems} lines={printScope === 'current' ? currentLines : budgetLines} scope={printScope}/><div className="screen-app"><Header onReset={() => setResetOpen(true)}/><main id="calculadora" className="calculator-wrapper"><div className="workspace-title"><h1>Cotiza tu espacio</h1><nav aria-label="Pasos de la cotización"><a href="#vendedor">Vendedor</a><span>›</span><a href="#materiales">Material</a><span>›</span><a href="#medidas">Medidas</a><span>›</span><a href="#instalacion">Instalación</a><span>›</span><a href="#cotizacion">Cotización</a></nav></div>{state.storageNotice && <div className="storage-notice" role="status"><p>{state.storageNotice}</p><button className="icon-button" aria-label="Cerrar aviso" onClick={state.dismissNotice}><X size={16}/></button></div>}<div className="calculator-layout"><div className="workspace-main"><SellerSelector sellerId={input.sellerId} onChange={sellerId => { setProjectInput({ ...input, sellerId }); setSellerError(false); }} error={sellerError}/><ProductSelector selectedProductId={product.id} onSelectProduct={state.selectProduct} price={prices[product.id]} onPrice={state.setPrice}/><ProjectForm product={product} input={input} onChangeInput={setProjectInput} result={result}/><InstallationOptions product={product} input={input} onChangeInput={setProjectInput} result={result} prices={prices} onPrice={state.setPrice}/></div><ResultsSummary product={product} result={result} lines={currentLines} sellerId={input.sellerId} budgetCount={budgetItems.length} onAdd={add} added={added} onPrint={() => print('current')} onExport={() => { if (requireSeller()) exportQuoteCsv(currentLines); }} onBudget={() => setBudgetOpen(true)}/></div></main><footer className="site-footer"><span>DECOKASA</span><span>Guardado en este navegador</span></footer><div className="sr-only" role="status" aria-live="polite">{announcement}</div><BudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} items={budgetItems} lines={budgetLines} prices={prices} onPrice={state.setPrice} onRemove={state.removeBudgetItem} onClear={state.clearBudget} onPrint={() => print('budget')} onLoad={item => { setProjectInput(structuredClone(item.input)); setSellerError(false); setAnnouncement('Cálculo recuperado.'); }}/><ResetConfirmModal open={resetOpen} onClose={() => setResetOpen(false)} onConfirm={state.resetProject}/></div></>;
 }
